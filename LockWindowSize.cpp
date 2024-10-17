@@ -20,7 +20,7 @@ private:
 	static LRESULT CALLBACK EventCallback(UINT Event, LPARAM lParam1, LPARAM lParam2, void* pClientData);
 	static void SetLockWindowSizeWndProc(HWND hwnd);
 	static void RestoreOriginalWndProc(HWND hwndz);
-
+	friend LRESULT CALLBACK LockWindowSizeWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 public:
 	bool GetPluginInfo(TVTest::PluginInfo* pInfo) override;
 	bool Initialize() override;
@@ -53,7 +53,7 @@ bool CPlugin::Initialize()
 bool CPlugin::Finalize()
 {
 	// 終了処理
-
+	
 	return true;
 }
 
@@ -73,6 +73,7 @@ LRESULT CALLBACK CPlugin::EventCallback(
 		return TRUE;
 
 	case TVTest::EVENT_PLUGINENABLE:
+	{
 		auto enabled = lParam1;
 
 		if (enabled)
@@ -83,6 +84,10 @@ LRESULT CALLBACK CPlugin::EventCallback(
 		{
 			RestoreOriginalWndProc(appWindow);
 		}
+		return TRUE;
+	}
+	case TVTest::EVENT_CLOSE:
+		RestoreOriginalWndProc(appWindow);
 		return TRUE;
 	}
 
@@ -103,7 +108,7 @@ LRESULT CALLBACK LockWindowSizeWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARA
 		{
 			return 0; // サイズ変更をキャンセルする
 		}
-		break;
+		return CallWindowProc(oldWndProc, hwnd, msg, wParam, lParam);
 
 	// ViewとかTitleBarとかStatusBarに吸い取られてSetCursorが上書きされる
 	//case WM_SETCURSOR:
@@ -122,6 +127,10 @@ LRESULT CALLBACK LockWindowSizeWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARA
 		//	// 他の領域ではデフォルトの処理
 		//	return CallWindowProc(oldWndProc, hwnd, msg, wParam, lParam);
 		//}
+	case WM_CLOSE:
+		CPlugin::RestoreOriginalWndProc(hwnd);
+		PostMessage(hwnd, WM_CLOSE, wParam, lParam);
+		return 0;
 
 	default:
 		return CallWindowProc(oldWndProc, hwnd, msg, wParam, lParam);
@@ -138,8 +147,10 @@ void CPlugin::SetLockWindowSizeWndProc(HWND hwnd)
 
 void CPlugin::RestoreOriginalWndProc(HWND hwnd)
 {
-	(WNDPROC)SetWindowLongPtr(hwnd, GWLP_WNDPROC, (LONG_PTR)oldWndProc);
-	oldWndProc = nullptr;
+	if (oldWndProc) {
+		(WNDPROC)SetWindowLongPtr(hwnd, GWLP_WNDPROC, (LONG_PTR)oldWndProc);
+		oldWndProc = nullptr;
+	}
 }
 
 
